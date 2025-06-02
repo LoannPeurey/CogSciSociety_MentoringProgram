@@ -9,4 +9,3 @@ These document contains the email template for mentors/mentees that include matc
 These are email templates in English and in various other languages (thanks to our contributors) for mentor recruitment. 
 
 ## Matching Algorithm
-The matching algorithm was created by Loann Puerey. 
