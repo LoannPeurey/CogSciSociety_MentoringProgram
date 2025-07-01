@@ -1,0 +1,9 @@
+docopt
+numpy
+scipy
+nltk
+scikit-learn
+protobuf==3.18.3
+ortools
+fuzzywuzzy
+dedupe-hcluster
