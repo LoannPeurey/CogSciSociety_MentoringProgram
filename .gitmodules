@@ -1,0 +1,3 @@
+[submodule "automated_matching/paper-reviewer-matcher"]
+	path = automated_matching/paper-reviewer-matcher
+	url = https://github.com/titipata/paper-reviewer-matcher.git
