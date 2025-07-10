@@ -4,6 +4,8 @@ scipy
 nltk
 scikit-learn
 protobuf==3.18.3
+pandas
 ortools
 fuzzywuzzy
 dedupe-hcluster
+unidecode
