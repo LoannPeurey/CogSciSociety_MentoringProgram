@@ -51,6 +51,8 @@ def assign_articles_to_reviewers(article_df, reviewer_df, people_df, max_mentees
                                 on='PersonID')[['paper_id', 'person_id']]
         
     # calculate affinity matrix
+    print(papers)
+    print(reviewers)
     A = compute_affinity(
         papers, reviewers,
         n_components=3, min_df=2, max_df=0.8,
@@ -58,28 +60,34 @@ def assign_articles_to_reviewers(article_df, reviewer_df, people_df, max_mentees
     )
 
     # ADD A WEIGHTED ADDITIONAL MATCHING ON LOCATION DISCUSSED
-    papers_loc = list((article_df['locations']).map(preprocess))
-    reviewers_loc = list(reviewer_df['locations'].map(preprocess))
-    weight_loc = 0.5
-    # calculate affinity matrix for locations
-    B = compute_affinity(
-        papers_loc, reviewers_loc,
-        n_components=2, min_df=2, max_df=0.8,
-        weighting='tfidf', projection='pca'
-    )
+    # papers_loc = list((article_df['locations']).map(preprocess))
+    # reviewers_loc = list(reviewer_df['locations'].map(preprocess))
+    # weight_loc = 0.5
+    # # calculate affinity matrix for locations
+    # B = compute_affinity(
+    #     papers_loc, reviewers_loc,
+    #     n_components=2, min_df=2, max_df=0.8,
+    #     weighting='tfidf', projection='pca'
+    # )
 
     # ADD A WEIGHTED ADDITIONAL MATCHING ON ONSITE VS DISTANT
     papers_onsite = list((article_df['onsite']).map(preprocess))
     reviewers_onsite = list(reviewer_df['onsite'].map(preprocess))
-    weight_onsite = 0.5
+    weight_onsite = 2
     # calculate affinity matrix for onsite or not onsite
+    print(reviewers_onsite)
+    print(papers_onsite)
     C = compute_affinity(
         papers_onsite, reviewers_onsite,
-        n_components=2, min_df=2, max_df=0.8,
+        n_components=1, min_df=3, max_df=0.3,
         weighting='tfidf', projection='pca'
     )
     
-    A = A + (weight_loc * B) + (weight_onsite * C)
+    A = (
+        A
+        # + (weight_loc * B)
+        + (weight_onsite * C)
+         )
     
     # trim distance that are too high
     A_trim = []
@@ -96,7 +104,7 @@ def assign_articles_to_reviewers(article_df, reviewer_df, people_df, max_mentees
     # print(A_trim)
     # min and max (we want a max of 3 reviewers(mentees) per paper(mentor) and exactly 1 mentor per mentee)
     v, K, d = create_lp_matrix(A_trim, 
-                               min_reviewers_per_paper=2, max_reviewers_per_paper=max_mentees,
+                               min_reviewers_per_paper=1, max_reviewers_per_paper=max_mentees,
                                min_papers_per_reviewer=1, max_papers_per_reviewer=1)
     x_sol = linprog(v, K, d)['x']
     b = create_assignment(x_sol, A_trim)
