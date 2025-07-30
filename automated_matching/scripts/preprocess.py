@@ -23,7 +23,7 @@ from functools import partial
 
 file_path = pathlib.Path(__file__).parent
 
-EMAIL_COL = 'email_address'
+EMAIL_COL = 'Email Address (Please use institutional email if available)'
 INSTITUTION_COLUMNS = ['std_institution_1', 'std_institution_2']
 
 def main(mentor_file, mentee_file, out_mentor_file, out_mentee_file, use_email_as_institution=False):
