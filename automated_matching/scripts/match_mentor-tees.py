@@ -14,22 +14,25 @@ import sys
 import argparse
 from pathlib import Path
 import os
+import re
 
-from static import POSITION_COLUMN, ACADEMIA_LEVELS, FIELDS_USED_MENTORS, FIELDS_USED_MENTEES
+from static import POSITION_COLUMN as STATUS, ACADEMIA_LEVELS, FIELDS_USED_MENTORS, FIELDS_USED_MENTEES
 
 from matching import assign_articles_to_reviewers, preprocess
 import pandas as pd
 
 file_path = Path(__file__).parent
 
+
+
 #complexity n*m where n=number of mentors, m=number of mentees
 #using a sort and then go through the levels would be more efficient
 #using a set instead of a list should be better
 def add_higher_level_mentees(row,mentees):
-    cur_level = ACADEMIA_LEVELS[row['status']]
+    cur_level = ACADEMIA_LEVELS[row[STATUS]]
     to_add=[]
     for i, mentee in mentees.iterrows():
-        if ACADEMIA_LEVELS[mentee['status']] >= cur_level:
+        if ACADEMIA_LEVELS[mentee[STATUS]] >= cur_level:
             to_add.append(str(mentee['PersonID']))
     if len(to_add):
         if len(str(row['PersonIDList'])):
@@ -47,6 +50,8 @@ MAX_TIME_DIFF_ACCEPTABLE = 5
 def add_mentees_in_far_timezone(row,mentees):
     cur_tdiff = row['timediff']
     if pd.isnull(cur_tdiff): return row['PersonIDList']
+    # this is so that people attending onsite won't have the timezone constraint, maybe will need adaptation
+    if row['onsite'] != 'I will be attending virtually': return row['PersonIDList']
     to_add=[]
     for i, mentee in mentees.iterrows():
         if not pd.isnull(mentee['timediff']) and abs(mentee['timediff'] - cur_tdiff) > MAX_TIME_DIFF_ACCEPTABLE:
@@ -63,9 +68,13 @@ def tz_to_tdiff(x):
     if pd.isnull(x) or x == '': return pd.NA
     match = re.search(r'[-+]?[0-9]+', x)
     if match:
-        return match.group()
+        return int(match.group())
     else:
-        raise ValueError(f"Could not extract timezone difference for <{x}>")
+        match = re.search(r'UTC',x)
+        if match:
+            return 0
+        else:
+            raise ValueError(f"Could not extract timezone difference for <{x}>")
 
 def build_abstract_mentor(row):
     """
@@ -74,17 +83,20 @@ def build_abstract_mentor(row):
     should be repeated the same way for the mentor and mentee abstracts
     """
     res = ''
-    res += ' ' + str(row["Main_Research_Area_1"])
-    res += ' ' + str(row["Main_Research_Area_2"])
+    res += ' ' + str(row["Main_Research_Area_1"]).replace(',', ' ')
+    res += ' ' + str(row["Main_Research_Area_2"]).replace(',', ' ')
     res += ' ' + str(row["Main_Topic"])
-    #res += ' ' + str(row["language"]) language was not collected for mentees
-    res += ' ' + str(row["MT-health"]).replace(';', ' ')
-    #res += ' ' + str(row["MT-location-career"]).replace(';', ' ')
-    res += ' ' + str(row["MT-career"]).replace(';', ' ')
+    res += ' ' + str(row["Main_Topic_health"]).replace(';', ' ')
+    # res += ' ' + str(row["MT-location-career"]).replace(';', ' ')
+    res += ' ' + str(row["Main_Topic_career"]).replace(';', ' ')
+    res += ' ' + str(row["Main_Topic_service"]).replace(';', ' ')
+    res += ' ' + str(row["Main_Topic_communities"]).replace(';', ' ')
     res += ' ' + str(row["Second_Topic"])
     #res += ' ' + str(row["ST-location-career"]).replace(';', ' ')
-    res += ' ' + str(row["ST-career"]).replace(';', ' ')
-    res += ' ' + str(row["ST-health"]).replace(';', ' ')
+    res += ' ' + str(row["Second_Topic_career"]).replace(';', ' ')
+    res += ' ' + str(row["Second_Topic_health"]).replace(';', ' ')
+    res += ' ' + str(row["Second_Topic_service"]).replace(';', ' ')
+    res += ' ' + str(row["Second_Topic_communities"]).replace(';', ' ')
     return res
 
 def build_abstract_mentee(row):
@@ -95,16 +107,23 @@ def build_abstract_mentee(row):
         """
     res = ''
     res += ' ' + str(row["Main_Research_Area_1"]).replace(',', ' ')
-    res += ' ' + str(row["Main_Research_Area_1"]).replace(',', ' ')
-    res += ' ' + str(row["Main_Research_Area_2"])
+    res += ' ' + str(row["Main_Research_Area_2"]).replace(',', ' ')
     res += ' ' + str(row["Main_Topic"])
-    res += ' ' + str(row["MT-health"]).replace(';', ' ')
+    res += ' ' + str(row["Main_Topic_health"]).replace(';', ' ')
     #res += ' ' + str(row["MT-location-career"]).replace(';', ' ')
-    res += ' ' + str(row["MT-career"]).replace(';', ' ')
+    res += ' ' + str(row["Main_Topic_career"]).replace(';', ' ')
+    res += ' ' + str(row["Main_Topic_service"]).replace(';', ' ')
+    res += ' ' + str(row["Main_Topic_communities"]).replace(';', ' ')
+    res += ' ' + str(row["Main_Topic_communities"]).replace(';', ' ')
+    res += ' ' + str(row["Main_Topic_communities"]).replace(';', ' ')
     res += ' ' + str(row["Second_Topic"])
     #res += ' ' + str(row["ST-location-career"]).replace(';', ' ')
-    res += ' ' + str(row["ST-career"]).replace(';', ' ')
-    res += ' ' + str(row["ST-health"]).replace(';', ' ')
+    res += ' ' + str(row["Second_Topic_career"]).replace(';', ' ')
+    res += ' ' + str(row["Second_Topic_health"]).replace(';', ' ')
+    res += ' ' + str(row["Second_Topic_service"]).replace(';', ' ')
+    res += ' ' + str(row["Second_Topic_communities"]).replace(';', ' ')
+    res += ' ' + str(row["Second_Topic_communities"]).replace(';', ' ')
+    res += ' ' + str(row["Second_Topic_communities"]).replace(';', ' ')
     return res
 
 def build_locations(row):
@@ -129,14 +148,16 @@ def main(max_mentees, mentors_file, mentees_file, output_visual, output_list, re
     mentees.fillna('', inplace=True)
 
     #create the people dataframe which has PersonID and FullName
+    mentees['name'] = mentees['Given/First Name'] + ' ' + mentees['Surname/Last Name']
+    mentors['name'] = mentors['Given/First Name'] + ' ' + mentors['Surname/Last Name']
     people_df = mentees[["name", "PersonID"]]
     people_df.rename(columns={"name": "FullName"}, inplace=True)
 
-    mentees = mentees[mentees['status'] != 'Predoctoral']
+    mentees = mentees[mentees[STATUS] != 'Predoctoral']
 
     #this gives a "level" for each position, this very crude ranking is made to match mentors in higher positions to mentees
-    mentees['level'] = mentees['status'].apply(lambda x: ACADEMIA_LEVELS[x])
-    mentors['level'] = mentors['status'].apply(lambda x: ACADEMIA_LEVELS[x])
+    mentees['level'] = mentees[STATUS].apply(lambda x: ACADEMIA_LEVELS[x])
+    mentors['level'] = mentors[STATUS].apply(lambda x: ACADEMIA_LEVELS[x])
 
 
     ##### This block searches for people who only signed up as mentees #####
@@ -164,7 +185,7 @@ def main(max_mentees, mentors_file, mentees_file, output_visual, output_list, re
 
     #build the abstract for the mentors (add wanted fields)
     mentors["Abstract"] = mentors.apply(build_abstract_mentor , axis=1)
-    mentors['locations'] = mentors.apply(build_locations , axis=1)
+    # mentors['locations'] = mentors.apply(build_locations , axis=1)
 
     #replace Nan values by empty string, add to the list every mentee that is higher up in level (or same) than the mentor
     mentors['PersonIDList'] = mentors.apply(add_higher_level_mentees,axis=1,mentees= mentees)
@@ -188,7 +209,7 @@ def main(max_mentees, mentors_file, mentees_file, output_visual, output_list, re
         mentors['PersonIDList'] = mentors.apply(add_mentees_in_far_timezone,axis=1,mentees= mentees)
 
     mentees["Abstract"] = mentees.apply(build_abstract_mentee , axis=1)
-    mentees['locations'] = mentees.apply(build_locations , axis=1)
+    # mentees['locations'] = mentees.apply(build_locations , axis=1)
 
     mentees_mat = mentees[["PersonID", "Abstract"]]
 
@@ -218,7 +239,14 @@ def main(max_mentees, mentors_file, mentees_file, output_visual, output_list, re
             n += 1
         compare = pd.concat([compare,mentors[mentors['PaperID']==row['PaperID']],mentees[mentees['PersonID'].astype(str).isin(row['ReviewerIDList'].split(';'))],pd.DataFrame([{'PaperID':'-'}])],ignore_index=True)
 
-    compare = compare[['PaperID','PersonID','score', 'name', 'std_institution_1','std_institution_2','status','level','Main_Research_Area_1','Main_Research_Area_2','Main_Topic','MT-health','MT-career','MT-location-career','Second_Topic','ST-career', 'ST-location-career','ST-health','onsite','timezone']]
+
+    # compare = compare[['PaperID','PersonID','score', 'name', 'std_institution_1','std_institution_2',STATUS,'level','Main_Research_Area_1','Main_Research_Area_2','Main_Topic','MT-health','MT-career','MT-location-career','Second_Topic','ST-career', 'ST-location-career','ST-health','onsite','timezone']]
+    compare = compare[
+        ['PaperID', 'PersonID', 'score', 'name', 'email', 'Institution', STATUS, 'level',
+         'Main_Research_Area_1', 'Main_Research_Area_2', 'Main_Topic', 'Main_Topic_health', 'Main_Topic_career',
+         "Main_Topic_service","Main_Topic_communities",'Second_Topic', 'Second_Topic_career', 'Second_Topic_health',
+         "Second_Topic_service","Second_Topic_communities",'onsite', 'timezone']]
+
     #compare.to_csv('test_compare.csv',index=False)
     compare.to_csv(output_visual,index=False)
 
