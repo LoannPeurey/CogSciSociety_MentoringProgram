@@ -69,17 +69,17 @@ def assign_articles_to_reviewers(article_df, reviewer_df, people_df, max_mentees
     )
 
     # ADD A WEIGHTED ADDITIONAL MATCHING ON ONSITE VS DISTANT
-    # papers_onsite = list((article_df['onsite']).map(preprocess))
-    # reviewers_onsite = list(reviewer_df['onsite'].map(preprocess))
-    # weight_onsite = 0.5
+    papers_onsite = list((article_df['onsite']).map(preprocess))
+    reviewers_onsite = list(reviewer_df['onsite'].map(preprocess))
+    weight_onsite = 0.5
     # calculate affinity matrix for onsite or not onsite
-    # C = compute_affinity(
-    #     papers_onsite, reviewers_onsite,
-    #     n_components=2, min_df=2, max_df=0.8,
-    #     weighting='tfidf', projection='pca'
-    # )
+    C = compute_affinity(
+        papers_onsite, reviewers_onsite,
+        n_components=2, min_df=2, max_df=0.8,
+        weighting='tfidf', projection='pca'
+    )
     
-    A = A + (weight_loc * B) #+ (weight_onsite * C)
+    A = A + (weight_loc * B) + (weight_onsite * C)
     
     # trim distance that are too high
     A_trim = []
